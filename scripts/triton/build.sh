@@ -90,9 +90,13 @@ export TRITON_BUILD_WITH_CCACHE=false
 export MAX_JOBS=$NUM_JOBS
 
 # Add sanitizer and coverage flags
-export CFLAGS="-fsanitize=address -fprofile-instr-generate -fcoverage-mapping"
-export CXXFLAGS="-fsanitize=address -fprofile-instr-generate -fcoverage-mapping"
-export LDFLAGS="-fsanitize=address"
+# export CFLAGS="-fsanitize=address -fprofile-instr-generate -fcoverage-mapping"
+# export CXXFLAGS="-fsanitize=address -fprofile-instr-generate -fcoverage-mapping"
+# export LDFLAGS="-fsanitize=address"
+
+export CFLAGS="-fprofile-instr-generate -fcoverage-mapping"
+export CXXFLAGS="-fprofile-instr-generate -fcoverage-mapping"
+
 
 echo "==> Building with flags:"
 echo "  CFLAGS=$CFLAGS"
