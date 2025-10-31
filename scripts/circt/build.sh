@@ -4,17 +4,18 @@ set -e
 # ============================================================================
 # Configuration
 # ============================================================================
-PROJECT_NAME="polygeist"
+PROJECT_NAME="circt"
+CIRCT_SHA="e2b32a42edf7b579069ba31141ce231a0eaae36b"
 
 # Paths
 WORKDIR=/data/saiva/sut
-POLYGEIST_SRC=$WORKDIR/sources/polygeist
-LLVM_SRC=$POLYGEIST_SRC/llvm-project
-LLVM_BUILD=$WORKDIR/builds/llvm_for_polygeist
-POLYGEIST_BUILD=$WORKDIR/builds/$PROJECT_NAME
+CIRCT_SRC=$WORKDIR/sources/circt
+LLVM_SRC=$CIRCT_SRC/llvm
+LLVM_BUILD=$WORKDIR/builds/llvm_for_circt
+CIRCT_BUILD=$WORKDIR/builds/$PROJECT_NAME
 
 # Build Configuration
-BUILD_TYPE=RelWithDebInfo
+BUILD_TYPE=Release  # Use Release to save space
 NUM_JOBS=$(nproc)
 
 # ============================================================================
@@ -38,9 +39,9 @@ done
 # ============================================================================
 if [ "$CLEAN" = true ]; then
     echo "==> Cleaning..."
-    rm -rf $POLYGEIST_SRC
+    rm -rf $CIRCT_SRC
     rm -rf $LLVM_BUILD
-    rm -rf $POLYGEIST_BUILD
+    rm -rf $CIRCT_BUILD
 fi
 
 # ============================================================================
@@ -49,87 +50,102 @@ fi
 echo "==> Setting up directories..."
 mkdir -p $WORKDIR/sources
 mkdir -p $LLVM_BUILD
-mkdir -p $POLYGEIST_BUILD
+mkdir -p $CIRCT_BUILD
 
 # ============================================================================
-# Clone Polygeist (with recursive submodules)
+# Clone CIRCT (with recursive submodules)
 # ============================================================================
-if [ -d "$POLYGEIST_SRC" ]; then
-    echo "==> Polygeist directory exists, updating..."
-    cd $POLYGEIST_SRC
-    git fetch
-    git pull || true
-    git submodule update --init --recursive
+if [ -d "$CIRCT_SRC" ]; then
+    echo "==> CIRCT directory exists, checking commit..."
+    cd $CIRCT_SRC
+    CURRENT_SHA=$(git rev-parse HEAD)
+    if [ "$CURRENT_SHA" != "$CIRCT_SHA" ]; then
+        echo "==> Checking out specific commit ($CIRCT_SHA)..."
+        git fetch
+        git checkout $CIRCT_SHA
+    else
+        echo "==> Already at correct commit ($CIRCT_SHA)"
+    fi
 else
-    echo "==> Cloning Polygeist with submodules..."
+    echo "==> Cloning CIRCT..."
     cd $WORKDIR/sources
-    git clone --recursive https://github.com/llvm/Polygeist polygeist
-    cd $POLYGEIST_SRC
+    git clone https://github.com/llvm/circt.git
+    cd $CIRCT_SRC
+    echo "==> Checking out specific commit ($CIRCT_SHA)..."
+    git checkout $CIRCT_SHA
 fi
 
+# Initialize LLVM submodule
+echo "==> Updating submodules..."
+cd $CIRCT_SRC
+git submodule update --init --recursive
+
 # ============================================================================
-# Build LLVM/MLIR/Clang (Step 1)
+# Build LLVM/MLIR (Step 1)
 # ============================================================================
-echo "==> Configuring LLVM/MLIR/Clang for Polygeist..."
+echo "==> Configuring LLVM/MLIR for CIRCT..."
 cd $LLVM_BUILD
 
 cmake -G Ninja $LLVM_SRC/llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
-    -DLLVM_TARGETS_TO_BUILD="host" \
+    -DLLVM_ENABLE_PROJECTS="mlir" \
+    -DLLVM_TARGETS_TO_BUILD="X86;RISCV" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
-    -DLLVM_USE_LINKER=lld
-
-echo "==> Building LLVM/MLIR/Clang..."
-ninja -j $NUM_JOBS
-
-echo "==> Testing MLIR..."
-ninja check-mlir
-
-# ============================================================================
-# Build Polygeist (Step 2)
-# ============================================================================
-echo "==> Configuring Polygeist with coverage..."
-cd $POLYGEIST_BUILD
-
-cmake -G Ninja $POLYGEIST_SRC \
-    -DMLIR_DIR=$LLVM_BUILD/lib/cmake/mlir \
-    -DCLANG_DIR=$LLVM_BUILD/lib/cmake/clang \
-    -DLLVM_TARGETS_TO_BUILD="host" \
-    -DLLVM_ENABLE_ASSERTIONS=ON \
-    -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
-    -DPOLYGEIST_USE_LINKER=lld \
     -DCMAKE_C_COMPILER=clang \
     -DCMAKE_CXX_COMPILER=clang++ \
+    -DLLVM_ENABLE_LLD=ON
+
+echo "==> Building LLVM/MLIR..."
+ninja -j $NUM_JOBS
+
+# ============================================================================
+# Build CIRCT (Step 2)
+# ============================================================================
+echo "==> Configuring CIRCT with coverage..."
+cd $CIRCT_BUILD
+
+cmake -G Ninja $CIRCT_SRC \
+    -DMLIR_DIR=$LLVM_BUILD/lib/cmake/mlir \
+    -DLLVM_DIR=$LLVM_BUILD/lib/cmake/llvm \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_C_COMPILER=clang \
+    -DCMAKE_CXX_COMPILER=clang++ \
+    -DLLVM_ENABLE_LLD=ON \
     -DCMAKE_C_FLAGS="-fprofile-instr-generate -fcoverage-mapping -Wno-error=pass-failed" \
     -DCMAKE_CXX_FLAGS="-fprofile-instr-generate -fcoverage-mapping -Wno-error=pass-failed"
 
-echo "==> Building Polygeist..."
+echo "==> Building CIRCT..."
 ninja -j $NUM_JOBS
 
-echo "==> Running Polygeist tests..."
-ninja check-polygeist-opt
-ninja check-cgeist
+echo "==> Running CIRCT tests..."
+ninja check-circt
 
 # ============================================================================
 # Summary
 # ============================================================================
 echo ""
 echo "=========================================="
-echo "Polygeist Build Complete!"
+echo "CIRCT Build Complete!"
 echo "=========================================="
-echo "polygeist-opt: $POLYGEIST_BUILD/bin/polygeist-opt"
-echo "cgeist: $POLYGEIST_BUILD/bin/cgeist"
-echo "mlir-clang: $POLYGEIST_BUILD/bin/mlir-clang"
+echo "circt-opt: $CIRCT_BUILD/bin/circt-opt"
+echo "circt-translate: $CIRCT_BUILD/bin/circt-translate"
+echo "firtool: $CIRCT_BUILD/bin/firtool"
 echo "LLVM build: $LLVM_BUILD"
-echo "Polygeist build: $POLYGEIST_BUILD"
+echo "CIRCT build: $CIRCT_BUILD"
 echo ""
-echo "Built WITH: Coverage instrumentation"
+echo "Commit: $CIRCT_SHA"
+echo ""
+echo "Built WITH: Coverage instrumentation (CIRCT only)"
 echo ""
 echo "Coverage usage:"
 echo "  export LLVM_PROFILE_FILE=\$PWD/coverage/%p.profraw"
 echo ""
-echo "Test commands:"
-echo "  ninja check-polygeist-opt  # Tests in polygeist-opt"
-echo "  ninja check-cgeist         # Tests in cgeist"
+echo "CIRCT dialects include:"
+echo "  - HW (Hardware)"
+echo "  - Comb (Combinational logic)"
+echo "  - Seq (Sequential logic)"
+echo "  - SV (SystemVerilog)"
+echo "  - FIRRTL"
+echo "  - and many more..."
 echo "=========================================="
