@@ -2,10 +2,8 @@
 
 set -e
 
-# ============================================================================
 # Configuration
-# ============================================================================
-TORCH_MLIR_COMMIT="55c638e8a9b808ccde1109d8cbeb87fd56a71259"
+COMMIT_SHA="55c638e8a9b808ccde1109d8cbeb87fd56a71259"
 PROJECT_NAME="torch_mlir"
 
 # Paths
@@ -18,9 +16,7 @@ TORCH_BUILD_DIR=$WORKDIR/builds/$PROJECT_NAME
 # Build Configuration
 NUM_JOBS=$(nproc)
 
-# ============================================================================
 # Parse Arguments
-# ============================================================================
 CLEAN=false
 while (( "$#" )); do
     case "$1" in
@@ -34,25 +30,19 @@ while (( "$#" )); do
     esac
 done
 
-# ============================================================================
 # Clean if requested
-# ============================================================================
 if [ "$CLEAN" = true ]; then
     echo "==> Cleaning build directories..."
     rm -rf $LLVM_BUILD_DIR
     rm -rf $TORCH_BUILD_DIR
 fi
 
-# ============================================================================
 # Setup Directories
-# ============================================================================
 echo "==> Setting up directories..."
 mkdir -p $WORKDIR/sources
 mkdir -p $LLVM_BUILD_DIR
 
-# ============================================================================
-# Clone Torch-MLIR (get the commit hash it needs)
-# ============================================================================
+# Clone Torch-MLI
 if [ -d "$TORCH_MLIR_SRC" ]; then
     echo "==> Torch-MLIR directory exists, updating..."
     cd $TORCH_MLIR_SRC
@@ -66,15 +56,13 @@ else
     cd $TORCH_MLIR_SRC
 fi
 
-# Checkout torch-mlir commit
-if [ "$(git rev-parse HEAD)" != "$TORCH_MLIR_COMMIT" ]; then
-    echo "==> Checking out Torch-MLIR commit: $TORCH_MLIR_COMMIT"
-    git checkout $TORCH_MLIR_COMMIT
+if [ "$(git rev-parse HEAD)" != "$COMMIT_SHA" ]; then
+    echo "==> Checking out Torch-MLIR commit: $COMMIT_SHA"
+    git checkout $COMMIT_SHA
 else
     echo "==> Already at correct Torch-MLIR commit"
 fi
 
-# Initialize submodules to see what LLVM commit torch-mlir wants
 echo "==> Initializing submodules..."
 git submodule update --init --recursive
 
@@ -82,9 +70,7 @@ git submodule update --init --recursive
 REQUIRED_LLVM_COMMIT=$(cd externals/llvm-project && git rev-parse HEAD)
 echo "==> Torch-MLIR requires LLVM commit: $REQUIRED_LLVM_COMMIT"
 
-# ============================================================================
 # Patch torch-mlir to skip tests
-# ============================================================================
 echo "==> Patching torch-mlir to skip test directory and test targets..."
 cd $TORCH_MLIR_SRC
 
@@ -98,9 +84,7 @@ grep -v "add_dependencies(check-torch-mlir-all check-torch-mlir)" > CMakeLists.t
 
 echo "==> Patched CMakeLists.txt"
 
-# ============================================================================
 # Setup Shared LLVM Source at the right commit
-# ============================================================================
 if [ ! -d "$SHARED_LLVM_SRC" ]; then
     echo "==> Cloning LLVM (shared source)..."
     cd $WORKDIR/sources
@@ -118,9 +102,7 @@ else
     echo "==> Already at correct LLVM commit: $REQUIRED_LLVM_COMMIT"
 fi
 
-# ============================================================================
 # Build LLVM with torch-mlir as external project
-# ============================================================================
 echo "==> Building LLVM with torch-mlir as external project..."
 cd $LLVM_BUILD_DIR
 
@@ -144,16 +126,12 @@ cmake -G Ninja $SHARED_LLVM_SRC/llvm \
 echo "==> Building torch-mlir-opt..."
 cmake --build . --target torch-mlir-opt -j $NUM_JOBS
 
-# ============================================================================
 # Restore torch-mlir CMakeLists.txt
-# ============================================================================
 echo "==> Restoring torch-mlir CMakeLists.txt..."
 cd $TORCH_MLIR_SRC
 mv CMakeLists.txt.backup CMakeLists.txt
 
-# ============================================================================
 # Summary
-# ============================================================================
 echo ""
 echo "=========================================="
 echo "Torch-MLIR Build Complete!"
@@ -162,8 +140,4 @@ echo "torch-mlir-opt: $LLVM_BUILD_DIR/bin/torch-mlir-opt"
 echo ""
 echo "Test with:"
 echo "  $LLVM_BUILD_DIR/bin/torch-mlir-opt --help"
-echo ""
-echo "Note: Using shared LLVM source at $SHARED_LLVM_SRC"
-echo "      LLVM commit: $REQUIRED_LLVM_COMMIT (1506ba95d7c3...)"
-echo "      Torch-MLIR commit: $TORCH_MLIR_COMMIT"
 echo "=========================================="

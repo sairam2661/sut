@@ -2,10 +2,8 @@
 
 set -e
 
-# ============================================================================
 # Configuration
-# ============================================================================
-TRITON_COMMIT="c3c476f357f1e9768ea4e45aa5c17528449ab9ef"
+COMMIT_SHA="c3c476f357f1e9768ea4e45aa5c17528449ab9ef"
 PROJECT_NAME="triton"
 
 # Paths
@@ -16,9 +14,7 @@ BUILD_DIR=$WORKDIR/builds/$PROJECT_NAME
 # Build Configuration
 NUM_JOBS=$(nproc)
 
-# ============================================================================
 # Parse Arguments
-# ============================================================================
 CLEAN=false
 while (( "$#" )); do
     case "$1" in
@@ -32,23 +28,17 @@ while (( "$#" )); do
     esac
 done
 
-# ============================================================================
 # Clean if requested
-# ============================================================================
 if [ "$CLEAN" = true ]; then
     echo "==> Cleaning..."
     rm -rf $TRITON_SRC
 fi
 
-# ============================================================================
 # Setup Directories
-# ============================================================================
 echo "==> Setting up directories..."
 mkdir -p $WORKDIR/sources
 
-# ============================================================================
 # Clone Triton
-# ============================================================================
 if [ -d "$TRITON_SRC" ]; then
     echo "==> Triton directory exists, cleaning..."
     rm -rf $TRITON_SRC
@@ -60,26 +50,20 @@ git clone https://github.com/triton-lang/triton.git
 cd $TRITON_SRC
 
 # Checkout specific commit
-echo "==> Checking out Triton commit: $TRITON_COMMIT"
-git checkout $TRITON_COMMIT
+echo "==> Checking out Triton commit: $COMMIT_SHA"
+git checkout $COMMIT_SHA
 
-# ============================================================================
 # Patch to skip tests
-# ============================================================================
 echo "==> Patching CMakeLists.txt to skip tests..."
 sed -i 's/add_subdirectory(unittest)/#add_subdirectory(unittest)/' CMakeLists.txt
 
-# ============================================================================
 # Install requirements
-# ============================================================================
 echo "==> Installing build requirements..."
 if [ -f "python/requirements.txt" ]; then
     pip install -r python/requirements.txt
 fi
 
-# ============================================================================
 # Build following README instructions
-# ============================================================================
 echo ""
 echo "==> Building Triton with sanitizers and coverage..."
 cd $TRITON_SRC
@@ -107,9 +91,7 @@ echo "  LDFLAGS=$LDFLAGS"
 echo "==> Installing Triton (without tests)..."
 pip install --no-build-isolation -e .
 
-# ============================================================================
 # Find triton-opt binary
-# ============================================================================
 echo ""
 echo "==> Locating triton-opt..."
 
@@ -124,9 +106,7 @@ if [ -n "$TRITON_OPT" ]; then
     echo "Copied to: $TRITON_OPT_FINAL"
 fi
 
-# ============================================================================
 # Summary
-# ============================================================================
 echo ""
 echo "=========================================="
 echo "Triton Build Complete!"
@@ -140,11 +120,4 @@ else
     echo "triton-opt: May be in build artifacts"
     echo "Search with: find ~/.triton $TRITON_SRC -name triton-opt 2>/dev/null"
 fi
-echo ""
-echo "Triton commit: $TRITON_COMMIT"
-echo "Built WITH: ASan + Coverage (tests skipped)"
-echo ""
-echo "Coverage usage:"
-echo "  export LLVM_PROFILE_FILE=\$PWD/coverage/%p.profraw"
-echo "  export ASAN_OPTIONS=detect_leaks=0"
 echo "=========================================="

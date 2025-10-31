@@ -2,9 +2,7 @@
 
 set -e
 
-# ============================================================================
 # Configuration
-# ============================================================================
 COMMIT_SHA="ab5eae01646e2a83356ec8fe300bf727dadc87dd"
 PROJECT_NAME="mlir_base"
 
@@ -17,16 +15,12 @@ BUILD_DIR=$WORKDIR/builds/$PROJECT_NAME
 BUILD_TYPE=RelWithDebInfo
 NUM_JOBS=$(nproc)
 
-# ============================================================================
 # Setup Directories
-# ============================================================================
 echo "==> Setting up directories..."
 mkdir -p $WORKDIR/sources
 mkdir -p $BUILD_DIR
 
-# ============================================================================
 # Clone/Update Source
-# ============================================================================
 if [ ! -d "$SRC_DIR" ]; then
     echo "==> Cloning LLVM..."
     cd $WORKDIR/sources
@@ -43,9 +37,7 @@ else
     echo "==> Already at correct commit: $COMMIT_SHA"
 fi
 
-# ============================================================================
 # Configure Build
-# ============================================================================
 echo "==> Configuring MLIR build with sanitizers and coverage..."
 cd $BUILD_DIR
 
@@ -62,15 +54,11 @@ cmake -G Ninja $SRC_DIR/llvm \
     -DCMAKE_C_FLAGS="-fprofile-instr-generate -fcoverage-mapping" \
     -DCMAKE_CXX_FLAGS="-fprofile-instr-generate -fcoverage-mapping"
 
-# ============================================================================
 # Build
-# ============================================================================
 echo "==> Building mlir-opt..."
 cmake --build . --target mlir-opt -j $NUM_JOBS
 
-# ============================================================================
 # Summary
-# ============================================================================
 echo ""
 echo "=========================================="
 echo "Build Complete!"
